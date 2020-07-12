@@ -1912,10 +1912,13 @@ AddInQueue(client,arena_index, bool:showmsg = true, playerPrefTeam = 0)
 	if(!IsValidClient(client))
 		return;
 
+	//On any public mge server I've ever been on, I've never seen this check happen. I do not know why this check is here, and it only shows up in the multiqueue feature so I'm disabling it.
+	/*
 	if (g_iPlayerArena[client])
 	{
 		PrintToChatAll("client <%N> is already on arena %d",client,arena_index);
 	}
+	*/
 	
 	//Set the player to the preffered team if there is room, otherwise just add him in wherever there is a slot
 	new player_slot = SLOT_ONE;
@@ -1962,23 +1965,15 @@ AddInQueue(client,arena_index, bool:showmsg = true, playerPrefTeam = 0)
 	if(g_bFourPersonArena[arena_index])
 	{
 		if (player_slot == SLOT_FOUR)
-		{
-			/*decl String:name[MAX_NAME_LENGTH];
-			GetClientName(client,name,sizeof(name));
-
-			if(!g_bNoStats && !g_bNoDisplayRating)	
-			CPrintToChatAll("%t","JoinsArena",name,g_iPlayerRating[client],g_sArenaName[arena_index]);
-			else
-				CPrintToChatAll("%t","JoinsArenaNoStats",name,g_sArenaName[arena_index]);*/
-
+		{		
+			for (int i = 1; i < 5; i++)	//loop all slots to make sure they're placed in the arena (as far as I know, the startduel timer and related functions don't already do this)
+				CreateTimer(0.1,Timer_ResetPlayer,GetClientUserId(client));
+			
+			//This sanity check could probably be removed but I'll leave it. It's not harming anybody :)
 			if (g_iArenaQueue[arena_index][SLOT_ONE] && g_iArenaQueue[arena_index][SLOT_TWO] && g_iArenaQueue[arena_index][SLOT_THREE] && g_iArenaQueue[arena_index][SLOT_FOUR])
-			{
-				for (int i = 1; i <= 4; i++) {
-					CreateTimer(0.1,Timer_ResetPlayer,GetClientUserId(g_iArenaQueue[arena_index][i]));
-				}
 				CreateTimer(1.5,Timer_StartDuel,arena_index);
-			}
-		} else {
+			
+		} else if (player_slot > SLOT_FOUR) {
 				if (GetClientTeam(client) != TEAM_SPEC)
 					ChangeClientTeam(client, TEAM_SPEC);
 				if (player_slot == SLOT_FOUR + 1)
@@ -1989,24 +1984,17 @@ AddInQueue(client,arena_index, bool:showmsg = true, playerPrefTeam = 0)
 	}
 	else 
 	{
-		if (player_slot <= SLOT_TWO)
+		if (player_slot == SLOT_TWO)
 		{
-			/*decl String:name[MAX_NAME_LENGTH];
-			GetClientName(client,name,sizeof(name));
-	
-			if(!g_bNoStats && !g_bNoDisplayRating)	
-				CPrintToChatAll("%t","JoinsArena",name,g_iPlayerRating[client],g_sArenaName[arena_index]);
-			else
-				CPrintToChatAll("%t","JoinsArenaNoStats",name,g_sArenaName[arena_index]);*/
-
+			//JoinsArena messages are removed here and in the four player arena block because they would only happen when the last person adds. There may be a place for them elsewhere, or the message could be refactored to something like... "Player1 and Player2 begin duel at Arena"
+			
+			for (int i = 1; i<3; i++)
+				CreateTimer(0.1,Timer_ResetPlayer,GetClientUserId(client));
+			
 			if (g_iArenaQueue[arena_index][SLOT_ONE] && g_iArenaQueue[arena_index][SLOT_TWO])
-			{
-				for (int i = 1; i <= 2; i++) {
-					CreateTimer(0.1,Timer_ResetPlayer,GetClientUserId(g_iArenaQueue[arena_index][i]));
-				}
 				CreateTimer(1.5,Timer_StartDuel,arena_index);
-			}
-		} else {
+
+		} else if (player_slot > SLOT_TWO) {	//using expression instead of simple if so that players earlier than the last player won't be treated as being "next in line" for a game.
 			if (GetClientTeam(client) != TEAM_SPEC)
 				ChangeClientTeam(client, TEAM_SPEC);
 			if (player_slot == SLOT_TWO + 1)
@@ -2286,14 +2274,14 @@ ResetPlayer(client)
 	}
 
 	// Clears player from queues
-	for (int arena = 1; arena <= g_iArenaCount; arena++) { // originally was > but I changed it >=. Fix it if I'm bad
+	for (int arena = 1; arena <= g_iArenaCount; arena++) {
 		if (arena == g_iPlayerArena[client]) {
 			continue;
 		}
 
 		for (int slot = 1; slot <= 10; slot++) { // assume there will never be 9 players in line at once
 			if (g_iArenaQueue[arena][slot] == client) {
-				RemoveFromQueue(client, arena, true); // idk what the true or false does here
+				RemoveFromQueue(client, arena);
 			}
 		}
 	}
@@ -3006,7 +2994,32 @@ public Action:Command_Remove(client, args)
 		new iArg = StringToInt(sArg);
 		if(iArg > 0 && iArg <= g_iArenaCount)
 		{
-			RemoveFromQueue(client, iArg, true);
+			RemoveFromQueue(client, iArg);
+			return Plugin_Handled;
+		}
+		
+		// Was the argument an arena string name?
+		GetCmdArgString(sArg, sizeof(sArg));
+		new count;
+		new found_arena;
+		for(new i = 1; i <= g_iArenaCount; i++)
+		{
+			if(StrContains(g_sArenaName[i], sArg, false) >= 0)
+			{
+				count++;
+				found_arena = i;
+				if(count > 1)
+				{
+					PrintToChat(client, "Error: Be more specific, multiple arenas with name like: %s", sArg);
+					return Plugin_Handled;
+				}
+			}
+		}
+		//if found an arena string
+		if(found_arena > 0 && found_arena <= g_iArenaCount)
+		{
+			RemoveFromQueue(client, found_arena);
+			return Plugin_Handled;
 		}
 	} else {
 		// Executes code to remove from all queues
