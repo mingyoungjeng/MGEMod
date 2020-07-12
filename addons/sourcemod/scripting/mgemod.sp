@@ -1967,7 +1967,7 @@ AddInQueue(client,arena_index, bool:showmsg = true, playerPrefTeam = 0)
 		if (player_slot == SLOT_FOUR)
 		{		
 			for (int i = 1; i < 5; i++)	//loop all slots to make sure they're placed in the arena (as far as I know, the startduel timer and related functions don't already do this)
-				CreateTimer(0.1,Timer_ResetPlayer,GetClientUserId(client));
+				CreateTimer(0.1,Timer_ResetPlayer,GetClientUserId(g_iArenaQueue[arena_index][i]));
 			
 			//This sanity check could probably be removed but I'll leave it. It's not harming anybody :)
 			if (g_iArenaQueue[arena_index][SLOT_ONE] && g_iArenaQueue[arena_index][SLOT_TWO] && g_iArenaQueue[arena_index][SLOT_THREE] && g_iArenaQueue[arena_index][SLOT_FOUR])
@@ -1989,7 +1989,7 @@ AddInQueue(client,arena_index, bool:showmsg = true, playerPrefTeam = 0)
 			//JoinsArena messages are removed here and in the four player arena block because they would only happen when the last person adds. There may be a place for them elsewhere, or the message could be refactored to something like... "Player1 and Player2 begin duel at Arena"
 			
 			for (int i = 1; i<3; i++)
-				CreateTimer(0.1,Timer_ResetPlayer,GetClientUserId(client));
+				CreateTimer(0.1,Timer_ResetPlayer,GetClientUserId(g_iArenaQueue[arena_index][i]));
 			
 			if (g_iArenaQueue[arena_index][SLOT_ONE] && g_iArenaQueue[arena_index][SLOT_TWO])
 				CreateTimer(1.5,Timer_StartDuel,arena_index);
