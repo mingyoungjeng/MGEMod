@@ -438,7 +438,7 @@ public OnMapStart()
 		g_iPlayerWaiting[i] = false;
 		g_bCanPlayerSwap[i] = true;
 		g_bCanPlayerGetIntel[i] = true;
- 		
+		
 	}
 	
 	for(new i = 0; i < MAXARENAS; i++)
@@ -558,7 +558,7 @@ public OnClientDisconnect(client)
 {
 	if (IsValidClient(client) && g_iPlayerArena[client])
 	{
-		RemoveFromQueue(client,true);
+		RemoveFromQueue(client,g_iPlayerArena[client],true);
 	} 
 	else 
 	{	
@@ -1077,14 +1077,14 @@ public Action:OnTouchHoop(entity, other)
 			}
 			if(g_bFourPersonArena[arena_index] && g_iArenaQueue[arena_index][SLOT_FOUR+1])
 			{
-				RemoveFromQueue(foe,false);
-				RemoveFromQueue(foe_teammate,false);
+				RemoveFromQueue(foe, g_iPlayerArena[foe], false);
+				RemoveFromQueue(foe_teammate, g_iPlayerArena[foe_teammate], false);
 				AddInQueue(foe,arena_index,false);
 				AddInQueue(foe_teammate,arena_index,false);
 			}
 			else if (g_iArenaQueue[arena_index][SLOT_TWO+1])
 			{
-				RemoveFromQueue(foe,false);
+				RemoveFromQueue(foe, g_iPlayerArena[foe], false);
 				AddInQueue(foe,arena_index,false);
 			} else {
 				CreateTimer(3.0,Timer_StartDuel,arena_index);
@@ -1681,15 +1681,8 @@ HideHud(client)
 }
 
 // ====[ QUEUE ]==================================================== 
-RemoveFromQueue(client, bool:calcstats=false, bool:specfix=false)
+RemoveFromQueue(client, arena_index, bool:calcstats=false, bool:specfix=false)
 {
-	new arena_index = g_iPlayerArena[client];
-
-	if (arena_index == 0)
-	{
-		return;
-	}
-
 	new player_slot = g_iPlayerSlot[client];
 	g_iPlayerArena[client] = 0;
 	g_iPlayerSlot[client] = 0;
@@ -1968,22 +1961,23 @@ AddInQueue(client,arena_index, bool:showmsg = true, playerPrefTeam = 0)
 	}
 	if(g_bFourPersonArena[arena_index])
 	{
-		if (player_slot <= SLOT_FOUR)
+		if (player_slot == SLOT_FOUR)
 		{
-			decl String:name[MAX_NAME_LENGTH];
+			/*decl String:name[MAX_NAME_LENGTH];
 			GetClientName(client,name,sizeof(name));
 
 			if(!g_bNoStats && !g_bNoDisplayRating)	
 			CPrintToChatAll("%t","JoinsArena",name,g_iPlayerRating[client],g_sArenaName[arena_index]);
 			else
-				CPrintToChatAll("%t","JoinsArenaNoStats",name,g_sArenaName[arena_index]);
+				CPrintToChatAll("%t","JoinsArenaNoStats",name,g_sArenaName[arena_index]);*/
 
 			if (g_iArenaQueue[arena_index][SLOT_ONE] && g_iArenaQueue[arena_index][SLOT_TWO] && g_iArenaQueue[arena_index][SLOT_THREE] && g_iArenaQueue[arena_index][SLOT_FOUR])
 			{
+				for (int i = 1; i <= 4; i++) {
+					CreateTimer(0.1,Timer_ResetPlayer,GetClientUserId(g_iArenaQueue[arena_index][i]));
+				}
 				CreateTimer(1.5,Timer_StartDuel,arena_index);
 			}
-			else
-				CreateTimer(0.1,Timer_ResetPlayer,GetClientUserId(client));
 		} else {
 				if (GetClientTeam(client) != TEAM_SPEC)
 					ChangeClientTeam(client, TEAM_SPEC);
@@ -1997,19 +1991,21 @@ AddInQueue(client,arena_index, bool:showmsg = true, playerPrefTeam = 0)
 	{
 		if (player_slot <= SLOT_TWO)
 		{
-			decl String:name[MAX_NAME_LENGTH];
+			/*decl String:name[MAX_NAME_LENGTH];
 			GetClientName(client,name,sizeof(name));
 	
 			if(!g_bNoStats && !g_bNoDisplayRating)	
 				CPrintToChatAll("%t","JoinsArena",name,g_iPlayerRating[client],g_sArenaName[arena_index]);
 			else
-				CPrintToChatAll("%t","JoinsArenaNoStats",name,g_sArenaName[arena_index]);
+				CPrintToChatAll("%t","JoinsArenaNoStats",name,g_sArenaName[arena_index]);*/
 
 			if (g_iArenaQueue[arena_index][SLOT_ONE] && g_iArenaQueue[arena_index][SLOT_TWO])
 			{
+				for (int i = 1; i <= 2; i++) {
+					CreateTimer(0.1,Timer_ResetPlayer,GetClientUserId(g_iArenaQueue[arena_index][i]));
+				}
 				CreateTimer(1.5,Timer_StartDuel,arena_index);
-			} else
-				CreateTimer(0.1,Timer_ResetPlayer,GetClientUserId(client));
+			}
 		} else {
 			if (GetClientTeam(client) != TEAM_SPEC)
 				ChangeClientTeam(client, TEAM_SPEC);
@@ -2284,10 +2280,22 @@ ResetPlayer(client)
 	new arena_index = g_iPlayerArena[client];
 	new player_slot = g_iPlayerSlot[client];
 	
-	
 	if (!arena_index || !player_slot)
 	{
 		return 0;
+	}
+
+	// Clears player from queues
+	for (int arena = 1; arena <= g_iArenaCount; arena++) { // originally was > but I changed it >=. Fix it if I'm bad
+		if (arena == g_iPlayerArena[client]) {
+			continue;
+		}
+
+		for (int slot = 1; slot <= 10; slot++) { // assume there will never be 9 players in line at once
+			if (g_iArenaQueue[arena][slot] == client) {
+				RemoveFromQueue(client, arena, true); // idk what the true or false does here
+			}
+		}
 	}
 
 	g_iPlayerSpecTarget[client] = 0;
@@ -2654,13 +2662,14 @@ public Menu_Main(Handle:menu, MenuAction:action, param1, param2)
 					return;
 				}
 
+				// Do we need to remove this?
 				if (g_iPlayerArena[client])
-					RemoveFromQueue(client, true);
+					RemoveFromQueue(client, g_iPlayerArena[client], true);
 
 				AddInQueue(client,arena_index);
 
 			} else {
-				RemoveFromQueue(client, true);
+				RemoveFromQueue(client, g_iPlayerArena[client], true);
 			}
 		}
 		case MenuAction_Cancel:
@@ -2670,7 +2679,7 @@ public Menu_Main(Handle:menu, MenuAction:action, param1, param2)
 		{
 			CloseHandle(menu);
 		}
-    }
+	}
 }
 
 public SwapMenuHandler(Handle:menu, MenuAction:action, param1, param2)
@@ -2797,7 +2806,7 @@ public Menu_Top5(Handle:menu, MenuAction:action, param1, param2)
 		{
 			CloseHandle(menu);
 		}
-    }
+	}
 }
 // ====[ ENDIF ]====================================================
 public Action:BoostVectors(Handle:timer, any:userid)
@@ -2896,8 +2905,15 @@ public Action:Command_Menu(client, args)
 			if(g_iPlayerArena[client] == iArg)
 				return Plugin_Handled;
 
-			if (g_iPlayerArena[client])
-				RemoveFromQueue(client, true);
+			int matches[MAXARENAS+1];
+			int ok = FindClientQueues(client, matches);
+			for (int i = 0; i < ok; i++)
+			{
+				if (matches[i] == iArg)
+				{
+					return Plugin_Handled;
+				}
+			}
 
 			AddInQueue(client,iArg, true, playerPrefTeam);
 			return Plugin_Handled;
@@ -2924,9 +2940,6 @@ public Action:Command_Menu(client, args)
 		// If there was only one string match, and it was a valid match, place the player in that arena if they aren't already in it.
 		if(found_arena > 0 && found_arena <= g_iArenaCount && found_arena != g_iPlayerArena[client])
 		{
-			if (g_iPlayerArena[client])
-				RemoveFromQueue(client, true);
-
 			AddInQueue(client, found_arena, true, playerPrefTeam);
 			return Plugin_Handled;
 		}
@@ -2986,7 +2999,24 @@ public Action:Command_Remove(client, args)
 	if (!IsValidClient(client))
 		return Plugin_Continue;
 
-	RemoveFromQueue(client, true);
+	new String:sArg[32];
+	if(GetCmdArg(1, sArg, sizeof(sArg)) > 0)
+	{
+		// Was the argument an arena_index number?
+		new iArg = StringToInt(sArg);
+		if(iArg > 0 && iArg <= g_iArenaCount)
+		{
+			RemoveFromQueue(client, iArg, true);
+		}
+	} else {
+		// Executes code to remove from all queues
+		int matches[MAXARENAS+1];
+		int ok = FindClientQueues(client, matches);
+		for (int i = 0; i < ok; i++)
+		{
+			RemoveFromQueue(client, matches[i], true);
+		}
+	}
 	return Plugin_Handled;
 }
 
@@ -3154,15 +3184,15 @@ public Action:Command_JoinClass(client, args)
 									CalcELO(killer,client);
 								if(g_bFourPersonArena[arena_index] && g_iArenaQueue[arena_index][SLOT_FOUR+1])
 								{
-									RemoveFromQueue(client,false);
+									RemoveFromQueue(client, g_iPlayerArena[client], false);
 									AddInQueue(client,arena_index,false);
 									
-									RemoveFromQueue(client_teammate,false);
+									RemoveFromQueue(client_teammate, g_iPlayerArena[client_teammate],false);
 									AddInQueue(client_teammate,arena_index,false);
 								}
 								else if (g_iArenaQueue[arena_index][SLOT_TWO+1])
 								{
-									RemoveFromQueue(client,false);
+									RemoveFromQueue(client, g_iPlayerArena[client],false);
 									AddInQueue(client,arena_index,false);
 								} 
 								else 
@@ -3357,7 +3387,7 @@ public Action:Command_First(client, args)
 			if(g_iArenaQueue[i][SLOT_ONE])
 			{
 				if(g_iPlayerArena[client])
-					RemoveFromQueue(client, true);
+					RemoveFromQueue(client, g_iPlayerArena[client], true);
 
 				AddInQueue(client, i, true);
 				return Plugin_Handled;
@@ -3373,7 +3403,7 @@ public Action:Command_First(client, args)
 			if(!g_iArenaQueue[i][SLOT_TWO] && g_iPlayerArena[client] != i)
 			{
 				if(g_iPlayerArena[client])
-					RemoveFromQueue(client, true);
+					RemoveFromQueue(client, g_iPlayerArena[client], true);
 
 				AddInQueue(client, i, true);
 				return Plugin_Handled;
@@ -3977,7 +4007,7 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 		{
 			if (g_iArenaQueue[arena_index][SLOT_TWO+1])
 			{
-				RemoveFromQueue(victim,false,true);
+				RemoveFromQueue(victim, g_iPlayerArena[victim],false,true);
 				AddInQueue(victim,arena_index,false);
 			} else {
 				CreateTimer(3.0,Timer_StartDuel,arena_index);
@@ -3987,14 +4017,14 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
 		{
 			if (g_iArenaQueue[arena_index][SLOT_FOUR+1] && g_iArenaQueue[arena_index][SLOT_FOUR+2])
 			{
-				RemoveFromQueue(victim_teammate,false,true);
-				RemoveFromQueue(victim,false,true);
+				RemoveFromQueue(victim_teammate, g_iPlayerArena[victim_teammate],false,true);
+				RemoveFromQueue(victim, g_iPlayerArena[victim],false,true);
 				AddInQueue(victim_teammate,arena_index,false);
 				AddInQueue(victim,arena_index,false);
 			} 
 			else if(g_iArenaQueue[arena_index][SLOT_FOUR+1])
 			{
-				RemoveFromQueue(victim,false,true);
+				RemoveFromQueue(victim, g_iPlayerArena[victim],false,true);
 				AddInQueue(victim,arena_index,false);
 			}
 			else {
@@ -4145,7 +4175,7 @@ public Action:Event_PlayerTeam(Handle:event, const String:name[], bool:dontBroad
 		if (arena_index && ((!g_bFourPersonArena[arena_index] && g_iPlayerSlot[client] <= SLOT_TWO) || (g_bFourPersonArena[arena_index] && g_iPlayerSlot[client] <= SLOT_FOUR && !isPlayerWaiting(client))))
 		{
 			CPrintToChat(client,"%t","SpecRemove");
-			RemoveFromQueue(client,true);
+			RemoveFromQueue(client, g_iPlayerArena[client],true);
 		}
 	} else if (IsValidClient(client)) { // this code fixing spawn exploit
 		new arena_index = g_iPlayerArena[client];
@@ -5421,14 +5451,14 @@ public EndKoth(any:arena_index, any:winner_team)
 
 		if(g_bFourPersonArena[arena_index] && g_iArenaQueue[arena_index][SLOT_FOUR+1])
 		{
-			RemoveFromQueue(foe,false);
-			RemoveFromQueue(foe_teammate,false);
+			RemoveFromQueue(foe, g_iPlayerArena[foe],false);
+			RemoveFromQueue(foe_teammate, g_iPlayerArena[foe_teammate],false);
 			AddInQueue(foe,arena_index,false);
 			AddInQueue(foe_teammate,arena_index,false);
 		}
 		else if (g_iArenaQueue[arena_index][SLOT_TWO+1])
 		{
-			RemoveFromQueue(foe,false);
+			RemoveFromQueue(foe, g_iPlayerArena[foe],false);
 			AddInQueue(foe,arena_index,false);
 		} else {
 			CreateTimer(3.0,Timer_StartDuel,arena_index);
@@ -5582,4 +5612,20 @@ public PlayEndgameSoundsToArena(any:arena_index, any:winner_team)
 				EmitSoundToClient(blu_2, SoundFileBlu);
 		}
 	}
+}
+
+public int FindClientQueues(int client, int matches[MAXARENAS+1]) //return results through an array buffer 
+{
+	int match = 0;
+	for (int arena = 1; arena <= g_iArenaCount; arena++) // originally was > but I changed it >=. Fix it if I'm bad
+	{
+		for (int slot = 1; slot < 10; slot++) // assume there will never be 9 players in line at once
+		{ 
+			if (g_iArenaQueue[arena][slot] == client)
+			{
+				matches[match++] = arena;    //iterate match (postscript ++) and add arena index to array
+			}
+		}
+	}
+	return match;
 }
